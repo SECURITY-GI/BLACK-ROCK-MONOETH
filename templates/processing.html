@@ -34,66 +34,53 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // This Jinja2 expression safely injects the WebSocket URL from the Flask server.
-            const WEBSOCKET_URL = "{{ websocket_url }}";
-            let socket;
+        document.addEventListener('DOMContentLoaded', async function() {
+            // The API endpoint in your monolithic app.py
+            const API_URL = "/api/process_transaction";
 
-            // Transaction data will be passed from the previous page via sessionStorage.
+            // Transaction data is passed from the previous page via sessionStorage.
             const transactionData = JSON.parse(sessionStorage.getItem('transactionData'));
 
             if (!transactionData) {
-                // If no data is found, the user likely navigated here directly. Redirect them.
                 console.error("No transaction data found. Redirecting to card page.");
                 window.location.href = '/card';
                 return;
             }
 
-            function connectAndSend() {
-                console.log(`Attempting to connect to ${WEBSOCKET_URL}...`);
-                socket = new WebSocket(WEBSOCKET_URL);
+            try {
+                console.log("Sending transaction data to API:", transactionData);
 
-                socket.onopen = () => {
-                    console.log("Connection established. Sending transaction data.");
-                    socket.send(JSON.stringify(transactionData));
-                };
+                // Use the fetch API to send a POST request to your backend
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(transactionData)
+                });
 
-                socket.onmessage = (event) => {
-                    try {
-                        const response = JSON.parse(event.data);
-                        console.log(`Response received:`, response);
-                        
-                        // Store the response details to be displayed on the next page
-                        sessionStorage.setItem('transactionResponse', JSON.stringify(response));
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
-                        // Check the response code and redirect accordingly
-                        if (response['39'] === '00') {
-                            window.location.href = '/success';
-                        } else {
-                            window.location.href = '/rejected';
-                        }
-                    } catch (e) {
-                        console.error("Failed to parse response:", e);
-                        sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Malformed response from server.' }));
-                        window.location.href = '/rejected';
-                    }
-                };
+                const result = await response.json();
+                console.log("Response received from API:", result);
 
-                socket.onclose = (event) => {
-                    console.error("WebSocket connection closed unexpectedly.", event);
-                    sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Connection to gateway lost.' }));
+                // Store the response details to be displayed on the next page
+                sessionStorage.setItem('transactionResponse', JSON.stringify(result));
+
+                // Check the response status and redirect accordingly
+                if (result.status === 'approved') {
+                    window.location.href = '/success';
+                } else {
                     window.location.href = '/rejected';
-                };
+                }
 
-                socket.onerror = (error) => {
-                    console.error("WebSocket error:", error);
-                    sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Could not connect to payment gateway.' }));
-                    window.location.href = '/rejected';
-                };
+            } catch (error) {
+                console.error("Failed to process transaction:", error);
+                sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Connection to gateway lost.' }));
+                window.location.href = '/rejected';
             }
-
-            // Initiate the process
-            connectAndSend();
         });
     </script>
 </body>
