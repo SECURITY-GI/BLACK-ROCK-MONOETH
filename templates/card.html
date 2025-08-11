@@ -160,10 +160,6 @@
             form.addEventListener('submit', function(e) {
                 e.preventDefault();
                 
-                // This is where you would integrate the WebSocket logic.
-                // It would gather all form data, build the JSON payload,
-                // send it, and then redirect based on the response.
-                
                 const formData = new FormData(form);
                 const data = Object.fromEntries(formData.entries());
                 
@@ -172,12 +168,34 @@
                     return;
                 }
                 
-                console.log('Form data to be sent:', data);
+                // --- FIX STARTS HERE ---
+                // We need to build the JSON payload that the backend API expects.
+                const amountInCents = String(Math.round(parseFloat(data.amount) * 100)).padStart(12, '0');
+                const apiPayload = {
+                    't': '0100', // MTI: Authorization Request
+                    '2': data.pan,
+                    '3': '000000', // Processing Code: Purchase
+                    '4': amountInCents,
+                    '11': String(Math.floor(Math.random() * 999999)).padStart(6, '0'), // STAN
+                    '12': new Date().toTimeString().slice(0, 8).replace(/:/g, ''), // Time (HHMMSS)
+                    '13': (new Date().getMonth() + 1).toString().padStart(2, '0') + new Date().getDate().toString().padStart(2, '0'), // Date (MMDD)
+                    '41': 'WEBTERM01', // Terminal ID
+                    '62': data.authCode,
+                    // We also pass along the selected wallet and currency for the backend to use
+                    'merchantWallet': data.merchantWallet,
+                    'currency': data.currency
+                };
+
+                // Store the complete payload in sessionStorage for the next page
+                sessionStorage.setItem('transactionData', JSON.stringify(apiPayload));
                 
-                // Simulate redirecting to a processing page
-                window.location.href = '/processing'; 
+                console.log('Storing transaction data and redirecting:', apiPayload);
+                
+                // Now, redirect to the processing page
+                window.location.href = '/processing';
+                // --- FIX ENDS HERE ---
             });
         });
     </script>
 </body>
-</html>
+</ht
