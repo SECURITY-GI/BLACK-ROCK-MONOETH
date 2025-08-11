@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Processing Transaction...</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border-left-color: #4f46e5; /* indigo-600 */
+            animation: spin 1s ease infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen items-center justify-center p-4 text-center">
+        <div class="w-full max-w-md">
+            <div class="bg-white p-12 rounded-2xl shadow-xl">
+                <div class="spinner mx-auto"></div>
+                <h1 class="text-2xl font-bold text-gray-900 mt-6">Processing Transaction</h1>
+                <p class="text-gray-500 mt-2">Please wait. Do not close this window or press the back button.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // This Jinja2 expression safely injects the WebSocket URL from the Flask server.
+            const WEBSOCKET_URL = "{{ websocket_url }}";
+            let socket;
+
+            // Transaction data will be passed from the previous page via sessionStorage.
+            const transactionData = JSON.parse(sessionStorage.getItem('transactionData'));
+
+            if (!transactionData) {
+                // If no data is found, the user likely navigated here directly. Redirect them.
+                console.error("No transaction data found. Redirecting to card page.");
+                window.location.href = '/card';
+                return;
+            }
+
+            function connectAndSend() {
+                console.log(`Attempting to connect to ${WEBSOCKET_URL}...`);
+                socket = new WebSocket(WEBSOCKET_URL);
+
+                socket.onopen = () => {
+                    console.log("Connection established. Sending transaction data.");
+                    socket.send(JSON.stringify(transactionData));
+                };
+
+                socket.onmessage = (event) => {
+                    try {
+                        const response = JSON.parse(event.data);
+                        console.log(`Response received:`, response);
+                        
+                        // Store the response details to be displayed on the next page
+                        sessionStorage.setItem('transactionResponse', JSON.stringify(response));
+
+                        // Check the response code and redirect accordingly
+                        if (response['39'] === '00') {
+                            window.location.href = '/success';
+                        } else {
+                            window.location.href = '/rejected';
+                        }
+                    } catch (e) {
+                        console.error("Failed to parse response:", e);
+                        sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Malformed response from server.' }));
+                        window.location.href = '/rejected';
+                    }
+                };
+
+                socket.onclose = (event) => {
+                    console.error("WebSocket connection closed unexpectedly.", event);
+                    sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Connection to gateway lost.' }));
+                    window.location.href = '/rejected';
+                };
+
+                socket.onerror = (error) => {
+                    console.error("WebSocket error:", error);
+                    sessionStorage.setItem('transactionResponse', JSON.stringify({ error: 'Could not connect to payment gateway.' }));
+                    window.location.href = '/rejected';
+                };
+            }
+
+            // Initiate the process
+            connectAndSend();
+        });
+    </script>
+</body>
+</html>

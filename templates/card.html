@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Transaction - Payment Gateway</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'Source Code Pro', monospace; }
+        /* Style for the selected wallet item */
+        .wallet-selected {
+            border-color: #4f46e5; /* indigo-600 */
+            box-shadow: 0 0 0 2px #a5b4fc; /* indigo-200 */
+            background-color: #eef2ff; /* indigo-50 */
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="w-full max-w-2xl">
+            <div class="bg-white p-8 rounded-2xl shadow-xl">
+                <div class="flex justify-between items-start mb-6">
+                    <div>
+                        <h1 class="text-3xl font-bold text-gray-900">New Card Transaction</h1>
+                        <p class="text-gray-500 mt-1">Enter payment details below.</p>
+                    </div>
+                    <a href="/logout" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Logout</a>
+                </div>
+
+                <!-- This form will be handled by JavaScript -->
+                <form id="paymentForm" class="space-y-6">
+                    <!-- Amount with Currency Selector -->
+                    <div>
+                        <label for="amount" class="block text-sm font-medium text-gray-700">Amount</label>
+                        <div class="mt-1 flex rounded-md shadow-sm">
+                            <input id="amount" name="amount" type="number" step="0.01" required placeholder="0.00"
+                                class="mono block w-full flex-1 rounded-none rounded-l-md border border-gray-300 px-3 py-2 focus:border-indigo-500 focus:ring-indigo-500">
+                            <select id="currency" name="currency"
+                                class="inline-flex items-center rounded-r-md border border-l-0 border-gray-300 bg-gray-50 px-3 text-sm text-gray-700 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <option>USD</option>
+                                <option>EUR</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Card Details -->
+                    <div>
+                        <label for="pan" class="block text-sm font-medium text-gray-700">Card Number (PAN)</label>
+                        <input id="pan" name="pan" type="text" required placeholder="•••• •••• •••• ••••"
+                            class="mono mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                    </div>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <label for="exp_month" class="block text-sm font-medium text-gray-700">MM</label>
+                            <input id="exp_month" name="exp_month" type="text" required placeholder="MM" maxlength="2"
+                                class="mono mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="exp_year" class="block text-sm font-medium text-gray-700">YY</label>
+                            <input id="exp_year" name="exp_year" type="text" required placeholder="YY" maxlength="2"
+                                class="mono mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="cvv" class="block text-sm font-medium text-gray-700">CVV/CVC</label>
+                            <input id="cvv" name="cvv" type="text" required placeholder="•••" maxlength="4"
+                                class="mono mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <!-- Protocol and Auth Code -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label for="protocol" class="block text-sm font-medium text-gray-700">Protocol</label>
+                            <select id="protocol" name="protocol" required
+                                class="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                                <!-- Protocols will be populated by Jinja2 from your exact list -->
+                                {% for name, code_len in protocols.items() %}
+                                    <option value="{{ name }}">{{ name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="authCode" class="block text-sm font-medium text-gray-700">Auth Code</label>
+                            <input id="authCode" name="authCode" type="password" required
+                                class="mono mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                    </div>
+
+                    <!-- Merchant Wallet Selection -->
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Merchant Payout Wallet</label>
+                        <div id="walletList" class="space-y-3">
+                            <!-- Wallets will be populated by Jinja2 -->
+                            {% for type, address in wallets.items() %}
+                            <div data-wallet-address="{{ address }}" class="wallet-item cursor-pointer p-4 border border-gray-300 rounded-lg transition-all flex items-center space-x-4">
+                                <div class="flex-shrink-0">
+                                    {% if 'ERC' in type %}
+                                        <svg class="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v.01"></path></svg>
+                                    {% else %}
+                                        <svg class="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 8h6m-5 0a3 3 0 110 6H9l3 3 3-3h-1a3 3 0 110-6z"></path></svg>
+                                    {% endif %}
+                                </div>
+                                <div>
+                                    <p class="font-semibold text-gray-800">
+                                        {% if 'ERC' in type %}
+                                            USDT ERC-20 <span class="text-sm font-normal text-gray-500">(Ethereum Network)</span>
+                                        {% elif 'TRC' in type %}
+                                            USDT TRC-20 <span class="text-sm font-normal text-gray-500">(Tron Network)</span>
+                                        {% else %}
+                                            {{ type }}
+                                        {% endif %}
+                                    </p>
+                                    <p class="mono text-sm text-gray-500 truncate">{{ address }}</p>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <input type="hidden" id="merchantWallet" name="merchantWallet" required>
+                    </div>
+
+                    <div>
+                        <button type="submit" id="submitBtn"
+                            class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                            Process Payment
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('paymentForm');
+            const walletList = document.getElementById('walletList');
+            const hiddenWalletInput = document.getElementById('merchantWallet');
+
+            // Handle wallet selection
+            walletList.addEventListener('click', function(e) {
+                const selectedItem = e.target.closest('.wallet-item');
+                if (!selectedItem) return;
+
+                document.querySelectorAll('.wallet-item').forEach(item => {
+                    item.classList.remove('wallet-selected');
+                });
+
+                selectedItem.classList.add('wallet-selected');
+                hiddenWalletInput.value = selectedItem.dataset.walletAddress;
+            });
+
+            // Set a default selection
+            const firstWallet = walletList.querySelector('.wallet-item');
+            if (firstWallet) {
+                firstWallet.click();
+            }
+
+            // Handle form submission
+            form.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                // This is where you would integrate the WebSocket logic.
+                // It would gather all form data, build the JSON payload,
+                // send it, and then redirect based on the response.
+                
+                const formData = new FormData(form);
+                const data = Object.fromEntries(formData.entries());
+                
+                if (!data.merchantWallet) {
+                    alert('Please select a merchant payout wallet.');
+                    return;
+                }
+                
+                console.log('Form data to be sent:', data);
+                
+                // Simulate redirecting to a processing page
+                window.location.href = '/processing'; 
+            });
+        });
+    </script>
+</body>
+</html>

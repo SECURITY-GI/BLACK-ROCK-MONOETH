@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Payment Gateway</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="w-full max-w-md">
+            <div class="bg-white p-8 rounded-2xl shadow-xl">
+                
+                <!-- Login Form (Visible by default) -->
+                <div id="login-form">
+                    <div class="text-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Payment Terminal Login</h1>
+                        <p class="text-gray-500 mt-2">Please sign in to continue</p>
+                    </div>
+                    <form action="/login" method="POST" class="space-y-6">
+                        <input type="hidden" name="form_type" value="login">
+                        <div>
+                            <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                            <input id="username" name="username" type="text" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                            <input id="password" name="password" type="password" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div class="flex items-center justify-end">
+                            <a href="#" id="show-forgot" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Forgot your password?</a>
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Sign in</button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- Forgot Password Form (Hidden by default) -->
+                <div id="forgot-form" style="display: none;">
+                    <div class="text-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Forgot Password</h1>
+                        <p class="text-gray-500 mt-2">Enter your username to receive a reset code.</p>
+                    </div>
+                    <form action="/login" method="POST" class="space-y-6">
+                        <input type="hidden" name="form_type" value="forgot">
+                        <div>
+                            <label for="forgot-username" class="block text-sm font-medium text-gray-700">Username</label>
+                            <input id="forgot-username" name="username" type="text" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Send Reset Code</button>
+                        </div>
+                    </form>
+                     <div class="mt-6 text-center">
+                        <a href="#" id="back-to-login-1" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to Login</a>
+                    </div>
+                </div>
+
+                <!-- Reset Password Form (Hidden by default) -->
+                <div id="reset-form" style="display: none;">
+                    <div class="text-center mb-8">
+                        <h1 class="text-3xl font-bold text-gray-900">Reset Password</h1>
+                        <p class="text-gray-500 mt-2">Enter the code and your new password.</p>
+                    </div>
+                    <form action="/login" method="POST" class="space-y-6">
+                        <input type="hidden" name="form_type" value="reset">
+                        <input type="hidden" id="reset-username-hidden" name="username">
+                        <div>
+                            <label for="totp_code" class="block text-sm font-medium text-gray-700">One-Time Code (TOTP)</label>
+                            <input id="totp_code" name="totp_code" type="text" required inputmode="numeric" pattern="[0-9]{6}" class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <label for="new_password" class="block text-sm font-medium text-gray-700">New Password</label>
+                            <input id="new_password" name="new_password" type="password" required class="mt-1 w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500">
+                        </div>
+                        <div>
+                            <button type="submit" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Set New Password</button>
+                        </div>
+                    </form>
+                    <div class="mt-6 text-center">
+                        <a href="#" id="back-to-login-2" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">&larr; Back to Login</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loginForm = document.getElementById('login-form');
+            const forgotForm = document.getElementById('forgot-form');
+            const resetForm = document.getElementById('reset-form');
+
+            const showForgotLink = document.getElementById('show-forgot');
+            const backToLogin1 = document.getElementById('back-to-login-1');
+            const backToLogin2 = document.getElementById('back-to-login-2');
+            
+            function showForm(formToShow) {
+                loginForm.style.display = 'none';
+                forgotForm.style.display = 'none';
+                resetForm.style.display = 'none';
+                formToShow.style.display = 'block';
+            }
+
+            showForgotLink.addEventListener('click', (e) => {
+                e.preventDefault();
+                showForm(forgotForm);
+            });
+
+            backToLogin1.addEventListener('click', (e) => {
+                e.preventDefault();
+                showForm(loginForm);
+            });
+            backToLogin2.addEventListener('click', (e) => {
+                e.preventDefault();
+                showForm(loginForm);
+            });
+
+            // Logic to potentially show the reset form directly if a reset is in progress
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('action') === 'reset') {
+                const username = urlParams.get('username');
+                if (username) {
+                    document.getElementById('reset-username-hidden').value = username;
+                    showForm(resetForm);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

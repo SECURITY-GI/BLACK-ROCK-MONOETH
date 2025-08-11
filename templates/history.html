@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction History</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'Source Code Pro', monospace; }
+        /* CSS rules for printing the statement */
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #statement-content, #statement-content * {
+                visibility: visible;
+            }
+            #statement-content {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                box-shadow: none;
+                border: none;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4 md:p-8">
+        <div id="statement-content" class="w-full bg-white p-8 rounded-2xl shadow-xl">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-900">Transaction History</h1>
+                <div class="flex space-x-4 no-print">
+                    <a href="/card" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">New Transaction</a>
+                    <a href="/logout" class="text-sm font-medium text-indigo-600 hover:text-indigo-500">Logout</a>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Card</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tx Hash</th>
+                        </tr>
+                    </thead>
+                    <tbody id="historyTableBody" class="bg-white divide-y divide-gray-200">
+                        <!-- Rows will be inserted here by JavaScript -->
+                    </tbody>
+                </table>
+                <div id="noHistoryMessage" class="text-center py-12 text-gray-500" style="display: none;">
+                    <p>No transactions have been made in this session.</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 flex justify-end no-print">
+             <button onclick="window.print()" class="w-full md:w-auto flex justify-center py-3 px-6 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                Print Statement
+            </button>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const tableBody = document.getElementById('historyTableBody');
+            const noHistoryMessage = document.getElementById('noHistoryMessage');
+            
+            // Retrieve the history array from sessionStorage, or initialize an empty one
+            const history = JSON.parse(sessionStorage.getItem('transactionHistory')) || [];
+
+            if (history.length === 0) {
+                noHistoryMessage.style.display = 'block';
+            } else {
+                // Reverse the history to show the most recent transactions first
+                history.reverse().forEach(record => {
+                    const request = record.request;
+                    const response = record.response;
+                    const isSuccess = response['39'] === '00';
+
+                    const amountValue = (parseFloat(request['4']) / 100).toFixed(2);
+                    const currency = request.currency || 'USD';
+                    const maskedPan = `•••• ${request['2'].slice(-4)}`;
+                    const statusClass = isSuccess ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800';
+                    const statusText = isSuccess ? 'Approved' : 'Declined';
+                    const txHash = response['63'] || 'N/A';
+
+                    const row = `
+                        <tr>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${new Date(record.timestamp).toLocaleString()}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 mono">${maskedPan}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 mono">${amountValue} ${currency}</td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${statusClass}">
+                                    ${statusText}
+                                </span>
+                            </td>
+                            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 mono truncate" title="${txHash}" style="max-width: 150px;">${txHash}</td>
+                        </tr>
+                    `;
+                    tableBody.innerHTML += row;
+                });
+            }
+        });
+    </script>
+</body>
+</html>

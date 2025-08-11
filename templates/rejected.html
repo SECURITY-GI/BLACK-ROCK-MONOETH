@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Transaction Declined</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .mono { font-family: 'Source Code Pro', monospace; }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <div class="flex min-h-screen items-center justify-center p-4">
+        <div class="w-full max-w-lg">
+            <div class="bg-white p-8 rounded-2xl shadow-xl text-center">
+                <svg class="w-20 h-20 text-red-500 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                <h1 class="text-3xl font-bold text-gray-900 mt-4">Transaction Declined</h1>
+                <div class="mt-4 text-left bg-red-50 p-4 rounded-lg">
+                    <p class="font-medium text-red-800">Reason for Decline:</p>
+                    <p id="rejectionReason" class="mono text-red-700 mt-1"></p>
+                </div>
+                <p class="text-gray-500 mt-4 text-sm">
+                    Please check the details and try again, or contact support if the issue persists.
+                </p>
+            </div>
+
+            <div class="mt-8 grid grid-cols-2 gap-4">
+                <a href="/card" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                    Go to Home
+                </a>
+                <a href="/logout" class="w-full flex justify-center py-3 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50">
+                    Logout
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const transactionResponse = JSON.parse(sessionStorage.getItem('transactionResponse'));
+            const reasonEl = document.getElementById('rejectionReason');
+
+            if (!transactionResponse) {
+                reasonEl.textContent = "No response data found. Please try the transaction again.";
+                return;
+            }
+
+            // Provide a user-friendly reason based on the response code
+            const responseCode = transactionResponse['39'];
+            let reasonText = `An unknown error occurred. (Code: ${responseCode || 'N/A'})`;
+
+            // Expanded map of common ISO 8583 response codes for more specific error messages.
+            const reasonMap = {
+                // Declines
+                '05': "Do Not Honor. The card issuer has declined the transaction.",
+                '14': "Invalid Card Number (PAN). Please check the card number and try again.",
+                '51': "Insufficient Funds. The account does not have sufficient funds.",
+                '54': "Expired Card. The card is expired.",
+                '55': "Incorrect PIN.",
+                
+                // System & Format Errors
+                '12': "Invalid Transaction. The request is not supported.",
+                '30': "Format Error. The data sent to the gateway was incorrect.",
+                '91': "System Error. The payment gateway or an upstream service is temporarily unavailable.",
+                '96': "System Malfunction. A general system error occurred.",
+
+                // Custom error from our gateway
+                'error': transactionResponse.error || "An unknown application error occurred."
+            };
+
+            if (responseCode && reasonMap[responseCode]) {
+                reasonText = reasonMap[responseCode];
+            } else if (transactionResponse.error) {
+                reasonText = reasonMap['error'];
+            }
+
+            reasonEl.textContent = reasonText;
+
+            // Clear the stored data after displaying it
+            // sessionStorage.removeItem('transactionData');
+            // sessionStorage.removeItem('transactionResponse');
+        });
+    </script>
+</body>
+</html>
