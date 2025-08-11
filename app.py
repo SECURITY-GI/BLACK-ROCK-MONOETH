@@ -43,6 +43,9 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 app.secret_key = os.environ.get('FLASK_SECRET_KEY', 'a_secret_key_that_is_very_secure')
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(minutes=30)
 
+# --- NEW: ERC-20 USDT Contract ABI ---
+# This is the standard interface definition for the USDT contract on Ethereum.
+ERC20_USDT_ABI = '[{"constant":true,"inputs":[],"name":"name","outputs":[{"name":"","type":"string"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_upgradedAddress","type":"address"}],"name":"deprecate","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"_spender","type":"address"},{"name":"_value","type":"uint256"}],"name":"approve","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"deprecated","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_evilUser","type":"address"}],"name":"addBlackList","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"totalSupply","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_from","type":"address"},{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transferFrom","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"upgradedAddress","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"balances","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"decimals","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"maximumFee","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"_owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[],"name":"owner","outputs":[{"name":"","type":"address"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"_token","type":"address"}],"name":"balanceOf","outputs":[{"name":"balance","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[],"name":"reclaimToken","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[],"name":"feeBasisPoints","outputs":[{"name":"","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":true,"inputs":[{"name":"","type":"address"}],"name":"isBlackListed","outputs":[{"name":"","type":"bool"}],"payable":false,"stateMutability":"view","type":"function"},{"constant":false,"inputs":[{"name":"_newOwner","type":"address"}],"name":"transferOwnership","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"_blackListedUser","type":"address"}],"name":"removeBlackList","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":false,"inputs":[{"name":"_to","type":"address"},{"name":"_value","type":"uint256"}],"name":"transfer","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"function"},{"constant":true,"inputs":[{"name":"_owner","type":"address"},{"name":"_spender","type":"address"}],"name":"allowance","outputs":[{"name":"remaining","type":"uint256"}],"payable":false,"stateMutability":"view","type":"function"},{"inputs":[{"name":"_initialSupply","type":"uint256"},{"name":"_name","type":"string"},{"name":"_symbol","type":"string"},{"name":"_decimals","type":"uint256"}],"name":"TetherToken","outputs":[],"payable":false,"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":false,"name":"newAddress","type":"address"}],"name":"Upgraded","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_blackListedUser","type":"address"}],"name":"AddedBlackList","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"_removedUser","type":"address"}],"name":"RemovedBlackList","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"owner","type":"address"},{"indexed":true,"name":"spender","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Approval","type":"event"},{"anonymous":false,"inputs":[{"indexed":true,"name":"from","type":"address"},{"indexed":true,"name":"to","type":"address"},{"indexed":false,"name":"value","type":"uint256"}],"name":"Transfer","type":"event"},{"anonymous":false,"inputs":[],"name":"Deprecate","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Issue","type":"event"},{"anonymous":false,"inputs":[{"indexed":false,"name":"value","type":"uint256"}],"name":"Redeem","type":"event"}]'
 
 # --- Firebase/Firestore Initialization ---
 firebase_config = json.loads(os.environ.get('__firebase_config', '{}'))
@@ -89,34 +92,88 @@ class Iso8583Message:
         return message_str.encode('ascii')
 
 # --- In-House Business Logic & Crypto Payout Service ---
-def initiate_payout(amount, payout_type, wallet_address):
-    logging.info(f"Processor: Initiating payout of {amount} {payout_type} to {wallet_address}...")
+def initiate_payout(amount, wallet_address):
+    """
+    Handles the actual crypto payout, routing between TRC-20 and ERC-20.
+    """
+    logging.info(f"Processor: Initiating payout of {amount} USDT to {wallet_address}...")
+
+    private_key_hex = os.environ.get("PAYOUT_WALLET_PRIVATE_KEY")
+    if not private_key_hex:
+        logging.error("SECURITY ALERT: PAYOUT_WALLET_PRIVATE_KEY environment variable is not set.")
+        return {"status": "failure", "hash": None, "message": "Payout service misconfigured."}
+
     try:
-        blockchain_tx_hash = f"0x{os.urandom(32).hex()}"
-        logging.info(f"Processor: Payout successful. Transaction Hash: {blockchain_tx_hash}")
-        time.sleep(1)
-        return {"status": "success", "hash": blockchain_tx_hash}
+        # --- TRC-20 (Tron) Payout ---
+        if wallet_address.startswith('T'):
+            client = Tron(provider='https://api.trongrid.io')
+            private_key = PrivateKey(bytes.fromhex(private_key_hex))
+            contract = client.get_contract("TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t")
+            amount_in_sun = int(float(amount) * 1_000_000)
+            txn = (
+                contract.functions.transfer(wallet_address, amount_in_sun)
+                .with_owner(private_key.public_key.to_base58check_address())
+                .fee_limit(100_000_000).build().sign(private_key)
+            )
+            result = txn.broadcast().wait()
+            if result.get('receipt', {}).get('result') == 'SUCCESS':
+                tx_hash = txn.txid
+                logging.info(f"Processor: TRC-20 Payout successful. Hash: {tx_hash}")
+                return {"status": "success", "hash": tx_hash}
+            else:
+                logging.error(f"Processor: TRC-20 Payout FAILED on-chain. Result: {result}")
+                return {"status": "failure", "hash": None}
+
+        # --- ERC-20 (Ethereum) Payout ---
+        elif wallet_address.startswith('0x'):
+            node_url = os.environ.get("ETHEREUM_NODE_URL")
+            if not node_url:
+                 logging.error("SECURITY ALERT: ETHEREUM_NODE_URL env var not set.")
+                 return {"status": "failure", "hash": None}
+            w3 = Web3(Web3.HTTPProvider(node_url))
+            account = w3.eth.account.from_key(private_key_hex)
+            usdt_contract_address = "0xdAC17F958D2ee523a2206206994597C13D831ec7"
+            usdt_contract = w3.eth.contract(address=w3.to_checksum_address(usdt_contract_address), abi=ERC20_USDT_ABI)
+            amount_in_wei = int(float(amount) * 1_000_000)
+            tx_data = usdt_contract.functions.transfer(
+                w3.to_checksum_address(wallet_address), amount_in_wei
+            ).build_transaction({
+                'from': account.address, 'gas': 200000,
+                'gasPrice': w3.eth.gas_price, 'nonce': w3.eth.get_transaction_count(account.address),
+            })
+            signed_tx = w3.eth.account.sign_transaction(tx_data, account.key)
+            tx_hash = w3.eth.send_raw_transaction(signed_tx.rawTransaction)
+            receipt = w3.eth.wait_for_transaction_receipt(tx_hash)
+            if receipt['status'] == 1:
+                 logging.info(f"Processor: ERC-20 Payout successful. Hash: {tx_hash.hex()}")
+                 return {"status": "success", "hash": tx_hash.hex()}
+            else:
+                 logging.error(f"Processor: ERC-20 Payout FAILED on-chain. Receipt: {receipt}")
+                 return {"status": "failure", "hash": tx_hash.hex()}
+        else:
+            logging.error(f"Unsupported wallet format for '{wallet_address}'.")
+            return {"status": "failure", "hash": None}
     except Exception as e:
-        logging.error(f"Processor: Crypto payout failed: {e}")
+        logging.error(f"Processor: Crypto payout failed with an exception: {e}", exc_info=True)
         return {"status": "failure", "hash": None}
 
 def process_payment_logic(data):
+    # This function now correctly uses the wallet address sent from the frontend
     amount = data.get('amount')
     currency = data.get('currency')
     card_number = data.get('cardNumber')
     protocol = data.get('protocol')
+    merchant_wallet = data.get('merchantWallet') # Get wallet from frontend data
     user_id = data.get('userId', 'virtual-terminal-1')
 
-    if not all([amount, currency, card_number, protocol]):
+    if not all([amount, currency, card_number, protocol, merchant_wallet]):
         return {"status": "declined", "response_code": "99", "message": "Missing transaction data."}
 
-    is_approved = random.choice([True, False])
+    is_approved = random.choice([True, True, False]) # Higher approval rate for testing
     blockchain_tx_hash = None
     if is_approved:
-        payout_type = 'USDT_TRC20'
-        merchant_wallet = 'Txxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx'
-        payout_result = initiate_payout(amount, payout_type, merchant_wallet)
-
+        # Call the live payout function with the selected merchant wallet
+        payout_result = initiate_payout(amount, merchant_wallet)
         if payout_result['status'] == 'success':
             blockchain_tx_hash = payout_result['hash']
             status_message = "Transaction approved and payout initiated."
@@ -129,16 +186,13 @@ def process_payment_logic(data):
         response_code = "51"
 
     log_transaction_to_firestore(user_id, data, {
-        "status": "approved" if is_approved else "declined",
-        "response_code": response_code,
-        "message": status_message,
+        "status": "approved" if is_approved and blockchain_tx_hash else "declined",
+        "response_code": response_code, "message": status_message,
         "blockchain_hash": blockchain_tx_hash
     })
-
     return {
-        "status": "approved" if is_approved else "declined",
-        "response_code": response_code,
-        "message": status_message,
+        "status": "approved" if is_approved and blockchain_tx_hash else "declined",
+        "response_code": response_code, "message": status_message,
         "blockchain_hash": blockchain_tx_hash
     }
 
