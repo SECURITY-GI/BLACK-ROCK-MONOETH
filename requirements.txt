@@ -1,4 +1,6 @@
 Flask
+web3
+tronpy
 gunicorn
 requests
 firebase-admin
